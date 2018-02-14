@@ -26,6 +26,12 @@ int main()
         shape_predictor pose_model;
         deserialize("shape_predictor_68_face_landmarks.dat") >> pose_model;
 
+  //       // Load image
+		// array2d<rgb_pixel> cimg;
+  //       load_image(cimg, "image.png");
+  //       // Make the image larger so we can detect small faces.
+  //       pyramid_up(cimg);
+
         // Grab and process frames until the main window is closed by the user.
         while(!win.is_closed())
         {
