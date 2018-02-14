@@ -55,7 +55,7 @@ int main()
             std::vector<full_object_detection> shapes;
             for (unsigned long i = 0; i < faces.size(); ++i) {
             	full_object_detection shape = pose_model(cimg, faces[i]);
-            	cv::line(cimg, shape[0], shape[16], Scalar (0, 255, 0), 2);
+            	cv::line(cimg, shape.part(0), shape.part(16), Scalar (0, 255, 0), 2);
                 shapes.push_back(shape);
             }
 
