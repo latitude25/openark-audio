@@ -1,5 +1,7 @@
 #include <dlib/opencv.h>
 #include <opencv2/highgui/highgui.hpp>
+#include <opencv2/core/core.hpp>
+#include <opencv2/imgproc.hpp>
 #include <dlib/image_processing/frontal_face_detector.h>
 #include <dlib/image_processing/render_face_detections.h>
 #include <dlib/image_processing.h>
@@ -55,7 +57,7 @@ int main()
             std::vector<full_object_detection> shapes;
             for (unsigned long i = 0; i < faces.size(); ++i) {
             	full_object_detection shape = pose_model(cimg, faces[i]);
-            	cv::line(cimg, shape.part(0), shape.part(16), Scalar (0, 255, 0), 2);
+            	// cv::line(cimg, shape.part(0), shape.part(16), cvScalar (0, 255, 0), 2);
                 shapes.push_back(shape);
             }
 
