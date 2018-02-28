@@ -6,7 +6,7 @@
 !*.*
 
 # Unignore all dirs
-#!*/
+!*/
 
 build/*
 .DS_Store
