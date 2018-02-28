@@ -7,6 +7,9 @@
 # Unignore all dirs
 !*/
 
+*~
+..*
+CMakeLists.txt
 build/*
 .DS_Store
 dlib/*

@@ -2,14 +2,14 @@ cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
 
 project(pcd_read)
 
-add_subdirectory(../dlib dlib_build)
+#add_subdirectory(../dlib dlib_build)
 
 find_package(PCL 1.2 REQUIRED)
 find_package(OpenCV REQUIRED)
-#find_package(dlib REQUIRED)
+find_package(dlib REQUIRED)
+
 #include_directories(${dlib_INCLUDE_DIRS})
 #link_directories(${dlib_LIBRARY_DIRS})
-
 
 include_directories(${PCL_INCLUDE_DIRS})
 link_directories(${PCL_LIBRARY_DIRS})
@@ -29,7 +29,7 @@ add_executable (pcd2png src/pcd2png.cpp)
 target_link_libraries (pcd_read ${PCL_LIBRARIES})
 target_link_libraries (pcd2png ${PCL_LIBRARIES})
 target_link_libraries (stktest stk)
-target_link_libraries(cvtest dlib::dlib)
+#target_link_libraries(cvtest dlib::dlib)
 
 if (OpenCV_FOUND)
   include_directories(${OpenCV_INCLUDE_DIRS})
