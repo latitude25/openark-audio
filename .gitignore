@@ -7,5 +7,4 @@
 # Unignore all dirs
 #!*/
 
-project/build/*
 build/*
