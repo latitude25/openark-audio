@@ -5,10 +5,12 @@
 #include <dlib/image_processing/frontal_face_detector.h>
 #include <dlib/image_processing/render_face_detections.h>
 #include <dlib/image_processing.h>
+#include <dlib/image_transforms.h>
 #include <dlib/gui_widgets.h>
 
 using namespace dlib;
 using namespace std;
+// using namespace cv;
 
 int main()
 {
@@ -26,7 +28,7 @@ int main()
         // Load face detection and pose estimation models.
         frontal_face_detector detector = get_frontal_face_detector();
         shape_predictor pose_model;
-        deserialize("shape_predictor_68_face_landmarks.dat") >> pose_model;
+        deserialize("../shape_predictor_68_face_landmarks.dat") >> pose_model;
 
   //       // Load image
 		// array2d<rgb_pixel> cimg;
@@ -57,14 +59,14 @@ int main()
             std::vector<full_object_detection> shapes;
             for (unsigned long i = 0; i < faces.size(); ++i) {
             	full_object_detection shape = pose_model(cimg, faces[i]);
-            	// cv::line(cimg, shape.part(0), shape.part(16), cvScalar (0, 255, 0), 2);
+                draw_line(cimg, shape.part(0)/2+shape.part(1)/2, shape.part(16)/2+shape.part(15)/2, 1);
                 shapes.push_back(shape);
             }
 
             // Display it all on the screen
             win.clear_overlay();
             win.set_image(cimg);
-            win.add_overlay(render_face_detections(shapes));
+            // win.add_overlay(render_face_detections(shapes));
         }
     }
     catch(serialization_error& e)
