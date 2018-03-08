@@ -2,8 +2,10 @@
 #include "FileLoop.h"
 #include "FileWvIn.h"
 #include "FileWvOut.h"
+#include "RtWvOut.h"
 #include "Fir.h"
 #include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -83,7 +85,18 @@ int main()
   lfilter.tick(iframes, oframes, 0, 0);  
   output.tick(oframes);
 
-  for ( int i=0; i<200000; i++ )
+	RtWvOut *dac = 0;
+  try {
+    // Define and open the default realtime output device for one-channel playback
+    dac = new RtWvOut( 2 );
+  }
+  catch ( StkError & ) {
+    exit( 1 );
+  }
+
+  for ( int i=0; i<200000; i++ ) {
+		dac->tick(input.tick());	
     output.tick( input.tick() );
+	}
   return 0;
 }
