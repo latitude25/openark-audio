@@ -5,6 +5,7 @@
 #include "FileLoop.h"
 #include "FileWvIn.h"
 #include "FileWvOut.h"
+#include "Filter.h"
 #include "Fir.h"
 
 #include <cstdio>
@@ -52,23 +53,43 @@ int main()
 
   vector<StkFloat> rightcoefficients(2048, 0); // create and initialize numerator coefficients
   vector<StkFloat> leftcoefficients(2048, 0); // create and initialize numerator coefficients
-  
-  rightcoefficients = HRIR[90][1];
-  leftcoefficients = HRIR[90][0];
-
-  Fir rfilter(rightcoefficients);
-  Fir lfilter(leftcoefficients);
-
+  rightcoefficients = HRIR[0][1];
+  leftcoefficients = HRIR[0][0];
 
   vector<StkFloat> rightcoefficients_90(2048, 0);
   vector<StkFloat> leftcoefficients_90(2048, 0);
-  rightcoefficients_90 = HRIR[270][1];
-  leftcoefficients_90 = HRIR[270][0];
+  rightcoefficients_90 = HRIR[60][1];
+  leftcoefficients_90 = HRIR[60][0];
+  
+  vector<StkFloat> rightcoefficients_180(2048, 0);
+  vector<StkFloat> leftcoefficients_180(2048, 0);
+  rightcoefficients_180 = HRIR[120][1];
+  leftcoefficients_180 = HRIR[120][0];
+  
+  vector<StkFloat> rightcoefficients_270(2048, 0);
+  vector<StkFloat> leftcoefficients_270(2048, 0);
+  rightcoefficients_270 = HRIR[180][1];
+  leftcoefficients_270 = HRIR[180][0];
+  
+  Fir rfilter(rightcoefficients);
+  Fir lfilter(leftcoefficients);
+  rfilter.setGain(0.5);
+  lfilter.setGain(0.5);
 
   Fir rfilter_90(rightcoefficients_90);
   Fir lfilter_90(leftcoefficients_90);
+  rfilter_90.setGain(0.5);
+  lfilter_90.setGain(0.5);
+  
+  Fir rfilter_180(rightcoefficients_180);
+  Fir lfilter_180(leftcoefficients_180);
+  rfilter_180.setGain(0.5);
+  lfilter_180.setGain(0.5);
 
-
+  Fir rfilter_270(rightcoefficients_270);
+  Fir lfilter_270(leftcoefficients_270);
+  rfilter_270.setGain(0.5);
+  lfilter_270.setGain(0.5);
   // FileWvIn input;
   // FileWvOut output;
 
@@ -80,28 +101,85 @@ int main()
   // cout << "Time: " << sampleSize/sampleRate << endl;
 
 
-  StkFrames iframes( nFrames, 1 );
-  StkFrames oframes( nFrames, 2 );
+  int cross_size = 44100/40; //crossfade of 25ms
+  StkFrames currframes( nFrames, 1 );
+  StkFrames nextframes(cross_size, 1);
+  StkFrames prevframes(cross_size, 1);
+
+  StkFrames convframes(nFrames + cross_size, 1);
+  StkFrames oframes( nFrames + cross_size, 2 );
+
 
   // Option 1: Use StkFrames
-  int sec = 0;
+  int sec = 0, i;
   while (1) {
-    sine.tick(iframes);
+  	
+	if (sec == 0) {
+    	sine.tick(currframes);
+		sine.tick(nextframes);
+	
+		for (i = 0; i < nFrames; ++ i) {
+			convframes[i] = currframes[i];
+		}
+		for (i = 0; i < cross_size; ++ i) {
+			convframes[i + nFrames] = nextframes[i];
+		}
+	} else {
+		for (i = 0; i < cross_size; ++i) {
+			convframes[i] = prevframes[i];
+		}
+		sine.tick(currframes);
+		sine.tick(nextframes);
+		for (i = 0; i < nFrames - cross_size; ++i) {
+			convframes[i + cross_size] = currframes[i];
+		}
+		for (i = 0; i < cross_size; ++i) {
+			convframes[i + nFrames] = nextframes[i];
+		}
+	}
+	
+	//sine.tick(convframes);
+	//sine.addTime(-1 * cross_size);
+	//iframes.resize(nFrames + cross_size);
+  	/*
+	for (i = 0; i < cross_size; ++i) {
+		iframes(i + nFrames, 0) = nextframes(i, 0);
+		iframes(i + nFrames, 1) = nextframes(i, 1);
+	}
+	*/
+	
+	//corssframes();  
+    if (sec % 4 == 0) {
+      rfilter.tick(convframes, oframes, 0, 1);
+      lfilter.tick(convframes, oframes, 0, 0);
+    } else if (sec % 4 == 1) {
+      rfilter_90.tick(convframes, oframes, 0, 1);
+      lfilter_90.tick(convframes, oframes, 0, 0);
     
-    if (sec % 2 == 0) {
-      rfilter.tick(iframes, oframes, 0, 1);
-      lfilter.tick(iframes, oframes, 0, 0);
+    } else if (sec % 4 == 2) {
+      rfilter_180.tick(convframes, oframes, 0, 1);
+      lfilter_180.tick(convframes, oframes, 0, 0);
+    
     } else {
-      rfilter_90.tick(iframes, oframes, 0, 1);
-      lfilter_90.tick(iframes, oframes, 0, 0);
+      rfilter_270.tick(convframes, oframes, 0, 1);
+      lfilter_270.tick(convframes, oframes, 0, 0);
     }
 
     try {
+	  oframes.resize(nFrames, 2);
       dac->tick(oframes);
+	  oframes.resize(nFrames + cross_size, 2);
     }
     catch ( StkError & ) {
       goto cleanup;
     }
+	if (sec == 0) {
+		currframes.resize(nFrames - cross_size);
+		prevframes = nextframes;
+	}
+	else {
+		prevframes = nextframes;
+	}
     sec ++;
   }
   

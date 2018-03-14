@@ -10,11 +10,19 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 using namespace std;
 using namespace stk;
 
+unordered_map<int, vector<Fir> > hrtf_set;
 
+void conv_audio(FileWvIn& input, FileWvOut& output, int angle, StkFrames& iframes, StkFrames& oframes) {
+  input.tick(iframes, 0);
+  hrtf_set[angle][1].tick(iframes, oframes, 0, 1);
+  hrtf_set[angle][0].tick(iframes, oframes, 0, 0);  
+  output.tick(oframes);
+}
 
 
 int main()
@@ -50,53 +58,53 @@ int main()
   cout << "SampleRate: " << sampleRate << endl;
   cout << "Time: " << sampleSize/sampleRate << endl;
 
+  
+
+  for (int i = 0; i < lineCount; ++i) {
+  	vector<StkFloat> rightcoefficients(2048, 0); // create and initialize numerator coefficients
+  	vector<StkFloat> leftcoefficients(2048, 0); // create and initialize numerator coefficients
+  	rightcoefficients = HRIR[i][1];
+  	leftcoefficients = HRIR[i][0];
+	vector<Fir> nfilter;
+	nfilter.emplace_back(Fir(leftcoefficients));
+	nfilter.emplace_back(Fir(rightcoefficients));
+	hrtf_set[i] = nfilter;
+  }
+
 
   // vector<StkFloat> coefficients(5, 0); // create and initialize numerator coefficients
-  vector<StkFloat> rightcoefficients(2048, 0); // create and initialize numerator coefficients
-  vector<StkFloat> leftcoefficients(2048, 0); // create and initialize numerator coefficients
-  // vector<StkFloat> denominator;         // create empty denominator coefficients
-  // denominator.push_back( 1.0 );              // populate our denomintor values
-  // denominator.push_back( 0.3 );
-  // denominator.push_back( -0.5 );
-  
-  // for (int i = 0; i < 2048; i ++) {
-    rightcoefficients = HRIR[270][1];
-    leftcoefficients = HRIR[270][0];
-  // }
-
-
+//  vector<StkFloat> rightcoefficients(2048, 0); // create and initialize numerator coefficients
+//  vector<StkFloat> leftcoefficients(2048, 0); // create and initialize numerator coefficients
+  auto rightcoefficients = HRIR[270][1];
+  auto leftcoefficients = HRIR[270][0];
   Fir rfilter(rightcoefficients);
   Fir lfilter(leftcoefficients);
 
+  //vector<StkFloat> rightcoefficients_(2048, 0); // create and initialize numerator coefficients
+  //vector<StkFloat> leftcoefficients_(2048, 0); // create and initialize numerator coefficients
+  auto rightcoefficients_ = HRIR[240][1];
+  auto leftcoefficients_ = HRIR[240][0];
+  Fir rfilter_(rightcoefficients_);
+  Fir lfilter_(leftcoefficients_);
 
   
   // Open a 16-bit, one-channel WAV formatted output file
   output.openFile( "hellosine.wav", 2, FileWrite::FILE_WAV, Stk::STK_SINT16 );
   // input.setFrequency( 440.0 );
   // Run the oscillator for 40000 samples, writing to the output file
-  StkFrames iframes(2*sampleRate, 1);
-  StkFrames oframes(2*sampleRate, 2);
+  StkFrames iframes(sampleRate/2, 1);
+  StkFrames oframes(sampleRate/2, 2);
 
-
-
-  input.tick(iframes, 0);
+  for (int angle = 0; angle < 225; angle += 15) {
+    conv_audio(input, output, angle, iframes, oframes);
+    // conv_audio(input, output, 240, iframes, oframes);
+    // conv_audio(input, output, 210, iframes, oframes);
+  }
   
-  rfilter.tick(iframes, oframes, 0, 1);
-  lfilter.tick(iframes, oframes, 0, 0);  
-  output.tick(oframes);
 
-	RtWvOut *dac = 0;
-  try {
-    // Define and open the default realtime output device for one-channel playback
-    dac = new RtWvOut( 2 );
-  }
-  catch ( StkError & ) {
-    exit( 1 );
-  }
 
-  for ( int i=0; i<200000; i++ ) {
-		dac->tick(input.tick());	
-    output.tick( input.tick() );
-	}
+ //  for ( int i=0; i<200000; i++ ) {
+ //    output.tick( input.tick() );
+	// }
   return 0;
 }
