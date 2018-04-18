@@ -15,22 +15,95 @@
 #include <future>
 #include <chrono>
 #include <atomic>
+#include <complex>
+#include <valarray>
 
 using namespace std;
 using namespace stk;
-using namespace std::literals;
+// using namespace std::literals;
+
+const double PI = 3.141592653589793238460;
+typedef std::complex<double> Complex;
+typedef std::valarray<Complex> CArray;
+
+void fft(CArray &x)
+{
+  // DFT
+  unsigned int N = x.size(), k = N, n;
+  double thetaT = 3.14159265358979323846264338328L / N;
+  Complex phiT = Complex(cos(thetaT), -sin(thetaT)), T;
+  while (k > 1)
+  {
+    n = k;
+    k >>= 1;
+    phiT = phiT * phiT;
+    T = 1.0L;
+    for (unsigned int l = 0; l < k; l++)
+    {
+      for (unsigned int a = l; a < N; a += n)
+      {
+        unsigned int b = a + k;
+        Complex t = x[a] - x[b];
+        x[a] += x[b];
+        x[b] = t * T;
+      }
+      T *= phiT;
+    }
+  }
+  // Decimate
+  unsigned int m = (unsigned int)log2(N);
+  for (unsigned int a = 0; a < N; a++)
+  {
+    unsigned int b = a;
+    // Reverse bits
+    b = (((b & 0xaaaaaaaa) >> 1) | ((b & 0x55555555) << 1));
+    b = (((b & 0xcccccccc) >> 2) | ((b & 0x33333333) << 2));
+    b = (((b & 0xf0f0f0f0) >> 4) | ((b & 0x0f0f0f0f) << 4));
+    b = (((b & 0xff00ff00) >> 8) | ((b & 0x00ff00ff) << 8));
+    b = ((b >> 16) | (b << 16)) >> (32 - m);
+    if (b > a)
+    {
+      Complex t = x[a];
+      x[a] = x[b];
+      x[b] = t;
+    }
+  }
+  //// Normalize (This section make it not working correctly)
+  //Complex f = 1.0 / sqrt(N);
+  //for (unsigned int i = 0; i < N; i++)
+  //  x[i] *= f;
+}
+ 
+// inverse fft (in-place)
+void ifft(CArray& x)
+{
+    // conjugate the complex numbers
+    x = x.apply(std::conj);
+ 
+    // forward fft
+    fft( x );
+ 
+    // conjugate the complex numbers again
+    x = x.apply(std::conj);
+ 
+    // scale the numbers
+    x /= x.size();
+}
+
+
 
 class AudioComponent {
 
 public:
 
   AudioComponent () {
-    HRIR = vector<vector<vector<double>>>(1440, vector<vector<double> >(2, vector<double>(2048)));
+    HRIR = vector<vector<vector<StkFloat>>>(1440, vector<vector<StkFloat> >(2, vector<StkFloat>(2048)));
   }
 
   ~AudioComponent () {
     cout << "Destruct AudioComponent\n";
-    delete dac;
+    if (dac != nullptr)
+      delete dac;
     input.closeFile();
   }
 
@@ -50,6 +123,11 @@ public:
     }
   }
 
+  // void estimation() {
+  //   std:valarray<double> cast(corps_tmp[i].data(), corps_tmp[i].size());
+  //   corps_tmp[i].assign(std::begin(corpX), std::end(corpX));
+  // }
+
   void loadAudio(string audioFile) {
     input.openFile(audioFile, false );
 
@@ -65,13 +143,23 @@ public:
 
   void setOutput(string outputFile) {
     try {
+      output.openFile(outputFile, 2, FileWrite::FILE_WAV, Stk::STK_SINT16 );
+    }
+    catch ( StkError & ) {
+      exit( 1 );
+    }
+    isOpen = true;
+    
+  }
+
+  void setRealTime() {
+    try {
       // Define and open the default realtime output device for two-channel playback
       dac = new RtWvOut(2);
     }
     catch ( StkError & ) {
       exit( 1 );
     }
-    output.openFile(outputFile, 2, FileWrite::FILE_WAV, Stk::STK_SINT16 );
 
   }
 
@@ -113,14 +201,15 @@ public:
 
     lcur.tick(iframes, oframes, 0, 0);
     rcur.tick(iframes, oframes, 0, 1);
-    output.tick(oframes);
+    if (isOpen)
+      output.tick(oframes);
     
   }
 
 
 private:
   unordered_map<int, vector<Fir>> hrtf_set;
-  vector<vector<vector<double>>> HRIR;
+  vector<vector<vector<StkFloat>>> HRIR;
   StkFloat sampleRate;
   unsigned int channels;
   unsigned long sampleSize;
@@ -135,34 +224,35 @@ private:
 
   FileWvIn input;
   FileWvOut output;
+  bool isOpen;
   RtWvOut *dac;
 
 };
 
-unordered_map<int, vector<Fir>> hrtf_set;
-vector<vector<vector<double>>> HRIR(1440, vector<vector<double> >(2, vector<double>(2048)));
-StkFloat sampleRate;
+// unordered_map<int, vector<Fir>> hrtf_set;
+// vector<vector<vector<double>>> HRIR(1440, vector<vector<double> >(2, vector<double>(2048)));
+// StkFloat sampleRate;
 
 
-inline void conv_audio_no_crossfade(FileWvIn& input, FileWvOut& output, Fir& lcur, Fir& rcur, int cur_angle, StkFrames& iframes, StkFrames& oframes) {
-  input.tick(iframes, 0);
+// inline void conv_audio_no_crossfade(FileWvIn& input, FileWvOut& output, Fir& lcur, Fir& rcur, int cur_angle, StkFrames& iframes, StkFrames& oframes) {
+//   input.tick(iframes, 0);
 
-  lcur.setCoefficients(HRIR[cur_angle][0]);
-  rcur.setCoefficients(HRIR[cur_angle][1]);
+//   lcur.setCoefficients(HRIR[cur_angle][0]);
+//   rcur.setCoefficients(HRIR[cur_angle][1]);
 
-  lcur.tick(iframes, oframes, 0, 0);
-  rcur.tick(iframes, oframes, 0, 1);
-  output.tick(oframes);
+//   lcur.tick(iframes, oframes, 0, 0);
+//   rcur.tick(iframes, oframes, 0, 1);
+//   output.tick(oframes);
 
-  // swap(lcur, lpre);
-  // swap(rcur, rpre);
-  // StkFloat gain1 = hrtf_set[prev_angle][0].getGain();
-  // StkFloat gain2 = hrtf_set[cur_angle][0].getGain();
-}
+//   // swap(lcur, lpre);
+//   // swap(rcur, rpre);
+//   // StkFloat gain1 = hrtf_set[prev_angle][0].getGain();
+//   // StkFloat gain2 = hrtf_set[cur_angle][0].getGain();
+// }
 
 void test(AudioComponent *ac) {
-  for (int angle = 90; angle < 270; angle += 15) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(250));
+  for (int angle = 0; angle < 360; angle += 1) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(60000/360));
     ac->setAngle(angle);
   }
 }
@@ -175,10 +265,12 @@ int main() {
   AudioComponent *ac = new AudioComponent();
   ac->loadHRIR("hrir.txt");
   ac->loadAudio("despacito.wav");
-  ac->setOutput("despacito_conv.wav");
+  // ac->setOutput("Wallpaper_conv.wav");
+  ac->setRealTime();
   std::thread outer(&test, ac);
   ac->renderAudio();
   outer.join();
+  delete ac;
   // std::thread acthread(&AudioComponent::renderAudio, ac);
   // ac.renderAudio();
 

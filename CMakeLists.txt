@@ -7,7 +7,7 @@ endif()
 set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
-set (CMAKE_CXX_STANDARD 11)
+set (CMAKE_CXX_STANDARD 14)
 project(capstone)
 
 
@@ -39,12 +39,14 @@ add_executable (pcd_read src/pcd_read.cpp)
 add_executable (cvtest src/cv_test.cpp)
 add_executable (pcd2png src/pcd2png.cpp)
 add_executable (stk_realtime src/stk_realtime.cpp)
+add_executable (crtsine src/crtsine.cpp)
 # add_executable (dlib_test dlib_test.cpp)
 
 target_link_libraries (pcd_read ${PCL_LIBRARIES})
 target_link_libraries (pcd2png ${PCL_LIBRARIES})
 target_link_libraries (stktest stk)
 target_link_libraries (stk_realtime stk)
+target_link_libraries (crtsine stk)
 #target_link_libraries(cvtest dlib::dlib)
 
 if (OpenCV_FOUND)
