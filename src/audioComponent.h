@@ -1,5 +1,5 @@
-#include "SineWave.h"
-#include "FileLoop.h"
+#pragma once 
+
 #include "FileWvIn.h"
 #include "FileWvOut.h"
 #include "RtAudio.h"
@@ -9,15 +9,16 @@
 #include <cstdlib>
 #include <iostream>
 #include <fstream>
+#include <thread>
+#include <chrono>
+#include <complex>
+
 #include <string>
 #include <vector>
-#include <unordered_map>
-#include <thread>
-#include <future>
-#include <chrono>
-#include <atomic>
-#include <complex>
 #include <valarray>
+#include <unordered_map>
+
+
 
 using namespace std;
 using namespace stk;
