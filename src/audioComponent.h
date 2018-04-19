@@ -18,10 +18,8 @@
 #include <valarray>
 #include <unordered_map>
 
-
-
 using namespace std;
-using namespace stk;
+// using namespace stk;
 
 class AudioComponent {
 public:

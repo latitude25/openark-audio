@@ -68,10 +68,10 @@ int tick( void *outputBuffer, void *inputBuffer, unsigned int nBufferFrames,
          double streamTime, RtAudioStreamStatus status, void *dataPointer )
   {
     AudioComponent* ac = (AudioComponent*) dataPointer;
-    FileWvIn *input = &ac->input;
+    stk::FileWvIn *input = &ac->input;
     int angle = ac->cur_angle; 
     
-    register StkFloat *samples = (StkFloat *) outputBuffer;
+    register stk::StkFloat *samples = (stk::StkFloat *) outputBuffer;
 
     if (input->isFinished()) {
       cout << "Audio finished\n";
@@ -81,7 +81,7 @@ int tick( void *outputBuffer, void *inputBuffer, unsigned int nBufferFrames,
     ac->lcur.setCoefficients(ac->HRIR[angle][0]);
     ac->rcur.setCoefficients(ac->HRIR[angle][1]);
 
-    StkFloat tmp = 0.;
+    stk::StkFloat tmp = 0.;
     for ( unsigned int i=0; i<nBufferFrames; i++ ) {
       tmp = input->tick();
       
@@ -93,7 +93,7 @@ int tick( void *outputBuffer, void *inputBuffer, unsigned int nBufferFrames,
   }
 
 AudioComponent::AudioComponent () {
-  HRIR = vector<vector<vector<StkFloat>>>(1440, vector<vector<StkFloat> >(2, vector<StkFloat>(2048)));
+  HRIR = vector<vector<vector<stk::StkFloat>>>(1440, vector<vector<stk::StkFloat> >(2, vector<stk::StkFloat>(2048)));
 }
 
 AudioComponent::~AudioComponent () {
@@ -142,9 +142,9 @@ void AudioComponent::loadAudio(string audioFile) {
 
 void AudioComponent::setOutput(string outputFile) {
   try {
-    output.openFile(outputFile, 2, FileWrite::FILE_WAV, Stk::STK_SINT16 );
+    output.openFile(outputFile, 2, stk::FileWrite::FILE_WAV, stk::FileRead::STK_SINT16 );
   }
-  catch ( StkError & ) {
+  catch ( stk::StkError & ) {
     exit( 1 );
   }
   isOpen = true;
@@ -155,11 +155,11 @@ void AudioComponent::setRealTime() {
   RtAudio::StreamParameters parameters;
   parameters.deviceId = dac.getDefaultOutputDevice();
   parameters.nChannels = 2;
-  RtAudioFormat format = ( sizeof(StkFloat) == 8 ) ? RTAUDIO_FLOAT64 : RTAUDIO_FLOAT32;
-  unsigned int bufferFrames = RT_BUFFER_SIZE;
+  RtAudioFormat format = ( sizeof(stk::StkFloat) == 8 ) ? RTAUDIO_FLOAT64 : RTAUDIO_FLOAT32;
+  unsigned int bufferFrames = stk::RT_BUFFER_SIZE;
 
   try {
-    dac.openStream( &parameters, NULL, format, (unsigned int)Stk::sampleRate(), &bufferFrames, &tick, (void *)this );
+    dac.openStream( &parameters, NULL, format, sampleRate, &bufferFrames, &tick, (void *)this );
   }
   catch ( RtAudioError &error ) {
     error.printMessage();
