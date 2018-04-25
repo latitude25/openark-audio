@@ -14,6 +14,7 @@
 #include <complex>
 
 #include <string>
+#include <cmath>
 #include <vector>
 #include <valarray>
 #include <unordered_map>
@@ -34,6 +35,8 @@ public:
   void setRealTime();
   void startRealTime();
   void setAngle(int angle);
+  void setDistance(int distance);
+  double estimate_itd(double r, double theta);
 
   friend int tick( void *outputBuffer, void *inputBuffer, unsigned int nBufferFrames, 
                     double streamTime, RtAudioStreamStatus status, void *dataPointer);
@@ -41,12 +44,15 @@ public:
 private:
   unordered_map<int, vector<stk::Fir>> hrtf_set;
   vector<vector<vector<stk::StkFloat>>> HRIR;
+  vector<vector<vector<stk::StkFloat>>> HRIR_minimumPhase;
+  vector<double> itd;
   stk::StkFloat sampleRate;
   unsigned int channels;
   unsigned long sampleSize;
 
   int prev_angle;
   int cur_angle;
+  int distance;
 
   stk::Fir lpre;
   stk::Fir rpre;
