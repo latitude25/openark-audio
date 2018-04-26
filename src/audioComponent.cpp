@@ -258,32 +258,32 @@ void AudioComponent::setDistance(int dist) {
  }
 
 
-//void test(AudioComponent *ac) {
-//  for (int angle = 0; angle < 360; angle += 2) {
-//    std::this_thread::sleep_for(std::chrono::milliseconds(60000/360));
-//    ac->setAngle(angle);
-//  }
-//}
-//
-//
-//int main() {
-//  // Set the global sample rate before creating class instances.
-//  // Stk::setSampleRate( 48000.0 );
-//
-//  AudioComponent *ac = new AudioComponent();
-//  ac->loadHRIR("hrir.txt");
-//  ac->loadAudio("happyhouse.wav");
-//  ac->minimumPhase(0.2);
-//  // ac->setOutput("Wallpaper_conv.wav");
-//  ac->setRealTime();
-//  std::thread outer(&test, ac);
-//  ac->startRealTime();
-//  // ac->renderAudio();
-//  outer.join();
-//  delete ac;
-//
-//  cout << "finish rendering" << endl;
-//
-//  exit(0);
-// 
-//}
+void test(AudioComponent *ac) {
+ for (int angle = 0; angle < 360; angle += 2) {
+   std::this_thread::sleep_for(std::chrono::milliseconds(60000/360));
+   ac->setAngle(angle);
+ }
+}
+
+
+int main() {
+ // Set the global sample rate before creating class instances.
+ // Stk::setSampleRate( 48000.0 );
+
+ AudioComponent *ac = new AudioComponent();
+ ac->loadHRIR("hrir.txt");
+ ac->loadAudio("despacito.wav");
+ // ac->minimumPhase(0.2);
+ // ac->setOutput("Wallpaper_conv.wav");
+ ac->setRealTime();
+ std::thread outer(&test, ac);
+ ac->startRealTime();
+ // ac->renderAudio();
+ outer.join();
+ delete ac;
+
+ cout << "finish rendering" << endl;
+
+ exit(0);
+
+}
