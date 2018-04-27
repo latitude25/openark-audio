@@ -60,7 +60,8 @@ private:
   stk::Fir rcur;
 
 
-  stk::FileWvIn input;
+  stk::FileWvIn linput;
+  stk::FileWvIn rinput;
   stk::FileWvOut output;
   bool isOpen;
   RtAudio dac;

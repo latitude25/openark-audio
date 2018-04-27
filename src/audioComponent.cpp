@@ -71,8 +71,8 @@ int tick( void *outputBuffer, void *inputBuffer, unsigned int nBufferFrames,
          double streamTime, RtAudioStreamStatus status, void *dataPointer )
   {
     AudioComponent* ac = (AudioComponent*) dataPointer;
-    stk::FileWvIn *input = &ac->input;
-    int angle = ac->cur_angle; 
+    stk::FileWvIn *linput = &ac->linput;
+    stk::FileWvIn *rinput = &ac->rinput;
     int distance = ac->distance;
 
     int cur_shift = round(ac->itd[ac->cur_angle] * ac->sampleRate);
@@ -80,22 +80,31 @@ int tick( void *outputBuffer, void *inputBuffer, unsigned int nBufferFrames,
 
     register stk::StkFloat *samples = (stk::StkFloat *) outputBuffer;
 
-    if (input->isFinished()) {
+    if (linput->isFinished() && rinput -> isFinished()) {
       cout << "Audio finished\n";
       return 1;
     }
 
-    ac->lcur.setCoefficients(ac->HRIR[angle + distance * 360][0]);
-    ac->rcur.setCoefficients(ac->HRIR[angle + distance * 360][1]);
+    stk::StkFloat l = 0.;
+    stk::StkFloat r = 0.;
 
-    stk::StkFloat tmp = 0.;
+    
+    ac->lcur.setCoefficients(ac->HRIR_minimumPhase[ac->cur_angle + distance * 360][0]);
+    ac->rcur.setCoefficients(ac->HRIR_minimumPhase[ac->cur_angle + distance * 360][1]);
 
-    for ( unsigned int i=0; i<nBufferFrames; i++ ) {
-      tmp = input->tick();
-      *samples++ = ac->lcur.tick(tmp) / double(pow(ac->distance + 1,2));
-      *samples++ = ac->rcur.tick(tmp) / double(pow(ac->distance + 1,2));
+    if (ac->cur_angle < 180) {
+      rinput->addTime(-1 * int(cur_shift - pre_shift));
+    } else {
+      linput->addTime(-1 * int(cur_shift - pre_shift));
     }
-    // input->addTime(-1* int(nBufferFrames));
+
+    for (unsigned int i = 0; i < nBufferFrames; i ++) {
+      l = linput->tick();
+      r = rinput->tick();
+      *samples++ = ac->lcur.tick(l) / double(pow(ac->distance + 1,2));
+      *samples++ = ac->rcur.tick(r) / double(pow(ac->distance + 1,2));
+    }
+    
     ac->pre_angle = ac->cur_angle;
 
     return 0;
@@ -115,7 +124,8 @@ AudioComponent::~AudioComponent () {
   catch ( RtAudioError &error ) {
     error.printMessage();
   }
-  input.closeFile();
+  linput.closeFile();
+  rinput.closeFile();
 }
 
 
@@ -138,11 +148,12 @@ void AudioComponent::loadHRIR(string fileName) {
 }
 
 void AudioComponent::loadAudio(string audioFile) {
-  input.openFile(audioFile, false );
+  linput.openFile(audioFile, false );
+  rinput.openFile(audioFile, false );
 
-  sampleRate = input.getFileRate();
-  channels = input.channelsOut();
-  sampleSize = input.getSize();
+  sampleRate = linput.getFileRate();
+  channels = linput.channelsOut();
+  sampleSize = linput.getSize();
   // Stk::setSampleRate( (unsigned int)sampleRate );
   
   cout << "Audio Information:\n";
