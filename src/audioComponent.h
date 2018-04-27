@@ -50,7 +50,7 @@ private:
   unsigned int channels;
   unsigned long sampleSize;
 
-  int prev_angle;
+  int pre_angle;
   int cur_angle;
   int distance;
 

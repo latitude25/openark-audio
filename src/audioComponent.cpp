@@ -1,5 +1,8 @@
 #include "audioComponent.h"
 
+using namespace stk;
+using namespace std;
+
 void fft(ComplexArray &x)
 {
   // DFT
@@ -70,8 +73,11 @@ int tick( void *outputBuffer, void *inputBuffer, unsigned int nBufferFrames,
     AudioComponent* ac = (AudioComponent*) dataPointer;
     stk::FileWvIn *input = &ac->input;
     int angle = ac->cur_angle; 
-	int distance = ac->distance;
-    
+    int distance = ac->distance;
+
+    int cur_shift = round(ac->itd[ac->cur_angle] * ac->sampleRate);
+    int pre_shift = round(ac->itd[ac->pre_angle] * ac->sampleRate);
+
     register stk::StkFloat *samples = (stk::StkFloat *) outputBuffer;
 
     if (input->isFinished()) {
@@ -83,12 +89,14 @@ int tick( void *outputBuffer, void *inputBuffer, unsigned int nBufferFrames,
     ac->rcur.setCoefficients(ac->HRIR[angle + distance * 360][1]);
 
     stk::StkFloat tmp = 0.;
+
     for ( unsigned int i=0; i<nBufferFrames; i++ ) {
       tmp = input->tick();
-	  cout << distance << endl;
       *samples++ = ac->lcur.tick(tmp) / double(pow(ac->distance + 1,2));
       *samples++ = ac->rcur.tick(tmp) / double(pow(ac->distance + 1,2));
     }
+    // input->addTime(-1* int(nBufferFrames));
+    ac->pre_angle = ac->cur_angle;
 
     return 0;
   }
@@ -135,6 +143,7 @@ void AudioComponent::loadAudio(string audioFile) {
   sampleRate = input.getFileRate();
   channels = input.channelsOut();
   sampleSize = input.getSize();
+  // Stk::setSampleRate( (unsigned int)sampleRate );
   
   cout << "Audio Information:\n";
   cout << "Number of Sample points: " << sampleSize << endl;
@@ -162,11 +171,11 @@ void AudioComponent::setRealTime() {
   unsigned int bufferFrames = stk::RT_BUFFER_SIZE;
 
   try {
-    dac.openStream( &parameters, NULL, format, sampleRate, &bufferFrames, &tick, (void *)this );
+    dac.openStream( &parameters, NULL, format, (unsigned int)Stk::sampleRate(), &bufferFrames, &tick, (void *)this );
+    //dac.openStream( &parameters, NULL, format, sampleRate, &bufferFrames, &tick, (void *)this );
   }
   catch ( RtAudioError &error ) {
     error.printMessage();
-    // goto cleanup;
     exit(1);
   }
 }
@@ -177,10 +186,8 @@ void AudioComponent::startRealTime() {
   }
   catch ( RtAudioError &error ) {
     error.printMessage();
-    // goto cleanup;
     exit(1);
   }
-
 }
 
 void AudioComponent::setAngle(int angle) {
@@ -191,54 +198,36 @@ void AudioComponent::setDistance(int dist) {
 	distance = dist;
 }
 
- void AudioComponent::minimumPhase(double r) {
-  // std:valarray<double> cast(corps_tmp[i].data(), corps_tmp[i].size());
-  // corps_tmp[i].assign(std::begin(corpX), std::end(corpX));
-  ComplexArray window(2048);
-  for (int i = 0; i < 1025; i ++) {
-    window[i] = {1, 0};
-  }
-  ComplexArray y(2048);
+void AudioComponent::minimumPhase(double r) {
+  ComplexArray window(2048), y(2048);
+
+  for (int i = 0; i < 1025; i ++) window[i] = {1, 0};
+  
   size_t i, j, k;
   for (i = 0; i < HRIR.size(); i ++) {
     for (j = 0; j < HRIR[i].size(); j ++) {
-      for (k = 0; k < y.size(); k ++) {
-        y[k] = {HRIR[i][j][k], 0};
-      }
-      fft(y);
-	  abs(y);
-	  for (k = 0; k < y.size(); k ++) 
-		  y[k] = log(y[k]);
-      //std::log(y);
-      ifft(y);
-      for (k = 0; k < y.size(); k ++)
-        y[k] = y[k].real();
+      for (k = 0; k < y.size(); k ++) y[k] = {HRIR[i][j][k], 0};
 
-      for (k = 0; k < y.size(); k ++) 
-        y[k] *= window[k];
-
-      fft(y);
-      //std::exp(y);
-	  for (k = 0; k < y.size(); k++) 
-		  y[k] = exp(y[k]);
+      fft(y); abs(y);
+      for (k = 0; k < y.size(); k ++) y[k] = log(y[k]);
+      // log(y);
       ifft(y);
 
-      //for (k = 0; k < y.size(); k ++) {
-      // y[k] = y[k].real();
-      //}
+      for (k = 0; k < y.size(); k ++) y[k] = y[k].real();
+      for (k = 0; k < y.size(); k ++) y[k] *= window[k];
+      fft(y);
+      // exp(y);
+      for (k = 0; k < y.size(); k ++) y[k] = exp(y[k]); 
+      ifft(y);
+
+      for (k = 0; k < 2048; k++) HRIR_minimumPhase[i][j][k] = y[k].real();
     }
-	//HRIR_minimumPhase[i][j].assign(std::begin(y), std::end(y));
-	for (size_t k = 0; k < 2048; k++) {
-		HRIR_minimumPhase[i][j][k] = y[k].real();
-	}
   }
-  
-  for (i = 0; i < itd.size(); i++) {
-	  itd[i] = estimate_itd(r, double(i));
-  }
+  for (i = 0; i < itd.size(); i++)
+    itd[i] = estimate_itd(r, double(i));
 }
 
- double AudioComponent::estimate_itd(double r, double theta) {
+double AudioComponent::estimate_itd(double r, double theta) {
 	 if (theta > 180) {
 		 theta = 360 - theta;
 	 }
@@ -254,36 +243,33 @@ void AudioComponent::setDistance(int dist) {
 		 ret = r / c * (theta + sin(theta));
 	 }
 	 return ret;
-
- }
-
-
-void test(AudioComponent *ac) {
- for (int angle = 0; angle < 360; angle += 2) {
-   std::this_thread::sleep_for(std::chrono::milliseconds(60000/360));
-   ac->setAngle(angle);
- }
 }
 
+void test(AudioComponent *ac) {
+  for (int angle = 0; angle < 360; angle += 2) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(60000/360));
+    ac->setAngle(angle);
+  }
+}
 
 int main() {
- // Set the global sample rate before creating class instances.
- // Stk::setSampleRate( 48000.0 );
+  // Set the global sample rate before creating class instances.
+  // Stk::setSampleRate( 48000.0 );
 
- AudioComponent *ac = new AudioComponent();
- ac->loadHRIR("hrir.txt");
- ac->loadAudio("despacito.wav");
- // ac->minimumPhase(0.2);
- // ac->setOutput("Wallpaper_conv.wav");
- ac->setRealTime();
- std::thread outer(&test, ac);
- ac->startRealTime();
- // ac->renderAudio();
- outer.join();
- delete ac;
+  AudioComponent *ac = new AudioComponent();
+  ac->loadHRIR("hrir.txt");
+  ac->loadAudio("happyhouse.wav");
+  ac->minimumPhase(0.2);
+  // ac->setOutput("Wallpaper_conv.wav");
+  ac->setRealTime();
+  std::thread outer(&test, ac);
+  ac->startRealTime();
+  // ac->renderAudio();
+  outer.join();
+  delete ac;
 
- cout << "finish rendering" << endl;
+  cout << "finish rendering" << endl;
 
- exit(0);
+  exit(0);
 
 }

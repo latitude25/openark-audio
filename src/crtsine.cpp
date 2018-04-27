@@ -1,34 +1,9 @@
-// crtsine.cpp STK tutorial program
-
-#include "SineWave.h"
-#include "FileLoop.h"
-#include "FileWvIn.h"
-#include "FileWvOut.h"
-#include "RtAudio.h"
-#include "Fir.h"
-
-#include <cstdio>
-#include <cstdlib>
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <vector>
-#include <unordered_map>
-#include <thread>
-#include <future>
-#include <chrono>
-#include <atomic>
-#include <complex>
-#include <valarray>
+#include "audioComponent.h"
 
 using namespace stk;
 using namespace std;
 
-const double PI = 3.141592653589793238460;
-typedef std::complex<double> Complex;
-typedef std::valarray<Complex> CArray;
-
-void fft(CArray &x)
+void fft(ComplexArray &x)
 {
   // DFT
   unsigned int N = x.size(), k = N, n;
@@ -77,7 +52,7 @@ void fft(CArray &x)
 }
  
 // inverse fft (in-place)
-void ifft(CArray& x)
+void ifft(ComplexArray& x)
 {
     // conjugate the complex numbers
     x = x.apply(std::conj);
@@ -88,48 +63,6 @@ void ifft(CArray& x)
     // scale the numbers
     x /= x.size();
 }
-
-
-class AudioComponent {
-public:
-  AudioComponent ();
-  ~AudioComponent ();
-  void loadHRIR(string fileName);
-  void loadAudio(string audioFile);
-  void minimumPhase(double r);
-
-
-  void setOutput(string outputFile);
-  void setRealTime();
-  void startRealTime();
-  void setAngle(int angle);
-
-  friend int tick( void *outputBuffer, void *inputBuffer, unsigned int nBufferFrames, 
-                    double streamTime, RtAudioStreamStatus status, void *dataPointer);
-
-private:
-  unordered_map<int, vector<Fir>> hrtf_set;
-  vector<vector<vector<StkFloat>>> HRIR;
-  StkFloat sampleRate;
-  unsigned int channels;
-  unsigned long sampleSize;
-
-  int prev_angle;
-  int cur_angle;
-
-  Fir lpre;
-  Fir rpre;
-  Fir lcur;
-  Fir rcur;
-
-
-  FileWvIn input;
-  FileWvOut output;
-  bool isOpen;
-  RtAudio dac;
-
-};
-
 
 // This tick() function handles sample computation only.  It will be
 // called automatically when the system needs a new buffer of audio
@@ -163,7 +96,10 @@ int tick( void *outputBuffer, void *inputBuffer, unsigned int nBufferFrames,
   }
 
 AudioComponent::AudioComponent () {
-  HRIR = vector<vector<vector<StkFloat>>>(1440, vector<vector<StkFloat> >(2, vector<StkFloat>(2048)));
+  // HRIR = vector<vector<vector<StkFloat>>>(1440, vector<vector<StkFloat> >(2, vector<StkFloat>(2048)));
+  HRIR = vector<vector<vector<stk::StkFloat>>>(1440, vector<vector<stk::StkFloat> >(2, vector<stk::StkFloat>(2048)));
+  HRIR_minimumPhase = vector<vector<vector<stk::StkFloat>>>(1440, vector<vector<stk::StkFloat> >(2, vector<stk::StkFloat>(2048)));
+  itd.resize(360);
 }
 
 AudioComponent::~AudioComponent () {
@@ -244,60 +180,64 @@ void AudioComponent::startRealTime() {
   }
   catch ( RtAudioError &error ) {
     error.printMessage();
-    // goto cleanup;
     exit(1);
   }
-
 }
 
 void AudioComponent::setAngle(int angle) {
   cur_angle = angle;
 }
 
-void AudioComponent::minimumPhase(double r) {
-  // std:valarray<double> cast(corps_tmp[i].data(), corps_tmp[i].size());
-  // corps_tmp[i].assign(std::begin(corpX), std::end(corpX));
-  CArray window(2048);
-  for (int i = 0; i < 1025; i ++) {
-    window[i] = {1, 0};
-  }
-  
-  for (size_t i = 0; i < HRIR.size(); i ++) {
-    for (size_t j = 0; j < HRIR[i].size(); j ++) {
-
-
-      CArray y(2048);
-      for (size_t k = 0; k < y.size(); k ++) {
-        y[k] = {HRIR[i][j][k], 0};
-      }
-
-      fft(y);
-
-      log(abs(y));
-
-      ifft(y);
-
-      for (size_t k = 0; k < y.size(); k ++) {
-        y[k] = y[k].real();
-      }
-
-      for (size_t k = 0; k < y.size(); k ++) {
-        y[k] *= window[k];
-      }
-
-      fft(y);
-
-      exp(y);
-
-      ifft(y);
-
-      for (size_t k = 0; k < y.size(); k ++) {
-        y[k] = y[k].real();
-      }
-    }
-  }  
+void AudioComponent::setDistance(int dist) {
+  distance = dist;
 }
 
+void AudioComponent::minimumPhase(double r) {
+  ComplexArray window(2048), y(2048);
+
+  for (int i = 0; i < 1025; i ++) window[i] = {1, 0};
+  
+  size_t i, j, k;
+  for (i = 0; i < HRIR.size(); i ++) {
+    for (j = 0; j < HRIR[i].size(); j ++) {
+      for (k = 0; k < y.size(); k ++) y[k] = {HRIR[i][j][k], 0};
+
+      fft(y); abs(y);
+      for (k = 0; k < y.size(); k ++) y[k] = log(y[k]);
+      // log(y);
+      ifft(y);
+
+      for (k = 0; k < y.size(); k ++) y[k] = y[k].real();
+      for (k = 0; k < y.size(); k ++) y[k] *= window[k];
+      fft(y);
+      // exp(y);
+      for (k = 0; k < y.size(); k ++) y[k] = exp(y[k]); 
+      ifft(y);
+
+      for (k = 0; k < 2048; k++) HRIR_minimumPhase[i][j][k] = y[k].real();
+    }
+  }
+  for (i = 0; i < itd.size(); i++)
+    itd[i] = estimate_itd(r, double(i));
+}
+
+double AudioComponent::estimate_itd(double r, double theta) {
+   if (theta > 180) {
+     theta = 360 - theta;
+   }
+   double PI = 3.14159265358979323846264338328L;
+   theta = theta / 180. * PI;
+   double c = 343.;
+
+   double ret;
+   if (theta > PI / 2.) {
+     ret = r / c * (PI - theta + sin(theta));
+   }
+   else {
+     ret = r / c * (theta + sin(theta));
+   }
+   return ret;
+}
 
 void test(AudioComponent *ac) {
   for (int angle = 0; angle < 360; angle += 2) {
